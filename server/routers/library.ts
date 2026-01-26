@@ -137,7 +137,7 @@ export const libraryRouter = router({
       }
 
       // Only show public books or books owned by the user
-      if (!book.isPublic && ctx.userId !== book.userId) {
+      if (!book.isPublic && ctx.user?.userId !== book.userId) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'Access denied',

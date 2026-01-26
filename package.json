@@ -88,6 +88,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",
+    "@tailwindcss/postcss": "^4.1.18",
     "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

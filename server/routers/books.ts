@@ -13,7 +13,7 @@ import { generateDocx } from '../lib/docxExport';
 import { uploadBuffer, getDownloadPresignedUrl } from '../lib/s3';
 
 // Summary item type
-interface SummaryItem {
+export interface SummaryItem {
   id: string;
   type: 'section' | 'item';
   title: string;

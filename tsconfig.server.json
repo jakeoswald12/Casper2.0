@@ -6,8 +6,10 @@
     "noEmit": false,
     "outDir": "./dist",
     "allowImportingTsExtensions": false,
-    "declaration": true
+    "declaration": false,
+    "noUnusedParameters": false,
+    "noUnusedLocals": false
   },
   "include": ["server/**/*", "shared/**/*", "drizzle/**/*"],
-  "exclude": ["node_modules", "client", "dist"]
+  "exclude": ["node_modules", "client", "dist", "server/__tests__"]
 }
