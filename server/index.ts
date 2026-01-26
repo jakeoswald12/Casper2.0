@@ -6,10 +6,32 @@ import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './routers';
 import { db } from './db';
 import { authMiddleware } from './lib/auth';
+import { handleStripeWebhook } from './webhooks/stripe';
 import type { Context } from './trpc';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Stripe webhook endpoint (needs raw body, must be before JSON middleware)
+app.post(
+  '/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    const signature = req.headers['stripe-signature'] as string;
+
+    if (!signature) {
+      return res.status(400).json({ error: 'Missing stripe-signature header' });
+    }
+
+    const result = await handleStripeWebhook(req.body, signature);
+
+    if (result.received) {
+      res.json({ received: true, type: result.type });
+    } else {
+      res.status(400).json({ error: result.error });
+    }
+  }
+);
 
 // Middleware
 app.use(
