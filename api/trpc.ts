@@ -1,8 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { getDb } from './db-serverless';
-
-// Import auth functions inline to avoid server/ imports
 import jwt from 'jsonwebtoken';
 
 interface JWTPayload {
@@ -21,21 +19,6 @@ async function verifyToken(token: string): Promise<JWTPayload | null> {
   }
 }
 
-// We need to dynamically import the router to handle module resolution
-let appRouter: any = null;
-
-async function getRouter() {
-  if (appRouter) return appRouter;
-  try {
-    const module = await import('../server/routers');
-    appRouter = module.appRouter;
-    return appRouter;
-  } catch (error: any) {
-    console.error('Failed to load router:', error.message);
-    throw error;
-  }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Add CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -48,7 +31,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const router = await getRouter();
+    // Dynamic import to handle module resolution in serverless
+    const { appRouter } = await import('../server/routers');
     const db = getDb();
 
     // Convert Vercel request to Fetch API Request
@@ -75,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? JSON.stringify(req.body)
           : undefined,
       }),
-      router,
+      router: appRouter,
       createContext: () => ({
         req: req as any,
         res: res as any,
@@ -101,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: error.stack?.split('\n').slice(0, 5)
     });
   }
 }
