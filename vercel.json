@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm build:client",
+  "outputDirectory": "dist/client",
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/api/trpc/:path*", "destination": "/api/trpc" },
+    { "source": "/api/webhooks/:path*", "destination": "/api/webhooks" },
+    { "source": "/api/health", "destination": "/api/health" },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
+}
