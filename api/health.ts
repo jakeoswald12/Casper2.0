@@ -1,10 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getSqlClient } from './db-serverless';
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const checks: Record<string, any> = {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '2.0.0',
+    version: '2.0.1',
+    build: 'serverless-fix',
     environment: {
       DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',
       JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'missing',
@@ -14,8 +16,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   // Test database connection
   try {
-    const { sqlClient } = await import('../server/db');
-    const result = await sqlClient`SELECT 1 as test`;
+    const sql = getSqlClient();
+    const result = await sql`SELECT 1 as test`;
     checks.database = { status: 'connected', result: result[0]?.test };
   } catch (error: any) {
     checks.database = {
@@ -29,8 +31,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   // Check if tables exist
   if (checks.database?.status === 'connected') {
     try {
-      const { sqlClient } = await import('../server/db');
-      const tables = await sqlClient`
+      const sql = getSqlClient();
+      const tables = await sql`
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public'
