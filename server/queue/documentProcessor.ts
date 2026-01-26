@@ -1,156 +1,177 @@
-import { Queue, Worker, Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { sourceMaterials, documentChunks } from '../../drizzle/schema';
 import { getObject } from '../lib/s3';
 import type { SourceMaterial } from '../../drizzle/schema';
 
-// Redis connection configuration
-const redisConnection = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-};
+// Check if Redis is available
+const REDIS_AVAILABLE = !!(process.env.REDIS_URL || process.env.REDIS_HOST);
 
-// Create queue
-export const documentQueue = new Queue('document-processing', {
-  connection: redisConnection,
-});
+// BullMQ queue and worker (only if Redis available)
+let documentQueue: any = null;
+let documentWorker: any = null;
 
-// Create worker
-export const documentWorker = new Worker(
-  'document-processing',
-  async (job: Job) => {
-    const { sourceMaterialId } = job.data;
+if (REDIS_AVAILABLE) {
+  // Dynamically import BullMQ only when Redis is available
+  import('bullmq').then(({ Queue, Worker }) => {
+    const redisConnection = process.env.REDIS_URL
+      ? { url: process.env.REDIS_URL }
+      : {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: parseInt(process.env.REDIS_PORT || '6379'),
+        };
 
-    try {
-      // Update status to processing
-      await db
-        .update(sourceMaterials)
-        .set({ processingStatus: 'processing' })
-        .where(eq(sourceMaterials.id, sourceMaterialId));
+    documentQueue = new Queue('document-processing', {
+      connection: redisConnection,
+    });
 
-      // Get source material
-      const source = await db.query.sourceMaterials.findFirst({
-        where: eq(sourceMaterials.id, sourceMaterialId),
-      });
-
-      if (!source) {
-        throw new Error('Source material not found');
-      }
-
-      // Download from S3
-      const s3Object = await getObject(source.storagePath);
-      const buffer = await streamToBuffer(s3Object.Body);
-
-      // Extract text based on file type
-      let extractedText = '';
-      let metadata: Record<string, unknown> = {};
-
-      switch (source.fileType.toLowerCase()) {
-        case 'pdf':
-          const pdfResult = await extractPdfText(buffer);
-          extractedText = pdfResult.text;
-          metadata = pdfResult.metadata;
-          break;
-
-        case 'docx':
-          const docxResult = await extractDocxText(buffer);
-          extractedText = docxResult.text;
-          metadata = docxResult.metadata;
-          break;
-
-        case 'txt':
-          extractedText = buffer.toString('utf-8');
-          break;
-
-        case 'epub':
-          const epubResult = await extractEpubText(buffer);
-          extractedText = epubResult.text;
-          metadata = epubResult.metadata;
-          break;
-
-        default:
-          throw new Error(`Unsupported file type: ${source.fileType}`);
-      }
-
-      // Calculate word count
-      const wordCount = extractedText
-        .split(/\s+/)
-        .filter((w) => w.length > 0).length;
-
-      // Create chunks
-      const chunks = createChunks(extractedText, 1000);
-
-      // Save chunks to database
-      for (let i = 0; i < chunks.length; i++) {
-        await db.insert(documentChunks).values({
-          sourceMaterialId: source.id,
-          bookId: source.bookId,
-          userId: source.userId,
-          content: chunks[i].content,
-          chunkIndex: i,
-          chunkSize: chunks[i].content.length,
-          pageNumber: chunks[i].pageNumber,
-          sectionTitle: chunks[i].sectionTitle,
-        });
-      }
-
-      // Update source material with results
-      await db
-        .update(sourceMaterials)
-        .set({
-          processingStatus: 'completed',
-          processedAt: new Date(),
-          wordCount,
-          pageCount: (metadata.pageCount as number) || null,
-          authorName: (metadata.author as string) || null,
-          metadata: metadata,
-        })
-        .where(eq(sourceMaterials.id, sourceMaterialId));
-
-      return { success: true, chunks: chunks.length };
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      // Update status to failed
-      await db
-        .update(sourceMaterials)
-        .set({
-          processingStatus: 'failed',
-          processingError: errorMessage,
-        })
-        .where(eq(sourceMaterials.id, sourceMaterialId));
-
-      throw error;
-    }
-  },
-  { connection: redisConnection }
-);
-
-// Listen for worker events
-documentWorker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed successfully`);
-});
-
-documentWorker.on('failed', (job, err) => {
-  console.error(`Job ${job?.id} failed:`, err.message);
-});
-
-// Add job to queue
-export async function addToProcessingQueue(source: SourceMaterial) {
-  await documentQueue.add(
-    'process-document',
-    {
-      sourceMaterialId: source.id,
-    },
-    {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 1000,
+    documentWorker = new Worker(
+      'document-processing',
+      async (job: any) => {
+        await processDocument(job.data.sourceMaterialId);
       },
+      { connection: redisConnection }
+    );
+
+    documentWorker.on('completed', (job: any) => {
+      console.log(`Job ${job.id} completed successfully`);
+    });
+
+    documentWorker.on('failed', (job: any, err: Error) => {
+      console.error(`Job ${job?.id} failed:`, err.message);
+    });
+  }).catch((err) => {
+    console.warn('BullMQ not available, using synchronous processing:', err.message);
+  });
+}
+
+// Core document processing logic
+async function processDocument(sourceMaterialId: number): Promise<{ success: boolean; chunks: number }> {
+  try {
+    // Update status to processing
+    await db
+      .update(sourceMaterials)
+      .set({ processingStatus: 'processing' })
+      .where(eq(sourceMaterials.id, sourceMaterialId));
+
+    // Get source material
+    const source = await db.query.sourceMaterials.findFirst({
+      where: eq(sourceMaterials.id, sourceMaterialId),
+    });
+
+    if (!source) {
+      throw new Error('Source material not found');
     }
-  );
+
+    // Download from S3
+    const s3Object = await getObject(source.storagePath);
+    const buffer = await streamToBuffer(s3Object.Body);
+
+    // Extract text based on file type
+    let extractedText = '';
+    let metadata: Record<string, unknown> = {};
+
+    switch (source.fileType.toLowerCase()) {
+      case 'pdf':
+        const pdfResult = await extractPdfText(buffer);
+        extractedText = pdfResult.text;
+        metadata = pdfResult.metadata;
+        break;
+
+      case 'docx':
+        const docxResult = await extractDocxText(buffer);
+        extractedText = docxResult.text;
+        metadata = docxResult.metadata;
+        break;
+
+      case 'txt':
+        extractedText = buffer.toString('utf-8');
+        break;
+
+      case 'epub':
+        const epubResult = await extractEpubText(buffer);
+        extractedText = epubResult.text;
+        metadata = epubResult.metadata;
+        break;
+
+      default:
+        throw new Error(`Unsupported file type: ${source.fileType}`);
+    }
+
+    // Calculate word count
+    const wordCount = extractedText
+      .split(/\s+/)
+      .filter((w) => w.length > 0).length;
+
+    // Create chunks
+    const chunks = createChunks(extractedText, 1000);
+
+    // Save chunks to database
+    for (let i = 0; i < chunks.length; i++) {
+      await db.insert(documentChunks).values({
+        sourceMaterialId: source.id,
+        bookId: source.bookId,
+        userId: source.userId,
+        content: chunks[i].content,
+        chunkIndex: i,
+        chunkSize: chunks[i].content.length,
+        pageNumber: chunks[i].pageNumber,
+        sectionTitle: chunks[i].sectionTitle,
+      });
+    }
+
+    // Update source material with results
+    await db
+      .update(sourceMaterials)
+      .set({
+        processingStatus: 'completed',
+        processedAt: new Date(),
+        wordCount,
+        pageCount: (metadata.pageCount as number) || null,
+        authorName: (metadata.author as string) || null,
+        metadata: metadata,
+      })
+      .where(eq(sourceMaterials.id, sourceMaterialId));
+
+    return { success: true, chunks: chunks.length };
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    // Update status to failed
+    await db
+      .update(sourceMaterials)
+      .set({
+        processingStatus: 'failed',
+        processingError: errorMessage,
+      })
+      .where(eq(sourceMaterials.id, sourceMaterialId));
+
+    throw error;
+  }
+}
+
+// Add job to queue (or process synchronously if no Redis)
+export async function addToProcessingQueue(source: SourceMaterial) {
+  if (documentQueue) {
+    // Use BullMQ queue if available
+    await documentQueue.add(
+      'process-document',
+      { sourceMaterialId: source.id },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      }
+    );
+  } else {
+    // Process synchronously (for serverless/no-Redis environments)
+    // Run in background without blocking the response
+    processDocument(source.id).catch((err) => {
+      console.error('Sync document processing failed:', err);
+    });
+  }
 }
 
 // Helper function to create intelligent chunks
@@ -216,7 +237,6 @@ function createChunks(text: string, maxChunkSize: number): ChunkInfo[] {
 // Helper to convert stream to buffer
 async function streamToBuffer(stream: unknown): Promise<Buffer> {
   const chunks: Buffer[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const readable = stream as any;
   return new Promise((resolve, reject) => {
     readable.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -229,7 +249,6 @@ async function streamToBuffer(stream: unknown): Promise<Buffer> {
 async function extractPdfText(
   buffer: Buffer
 ): Promise<{ text: string; metadata: Record<string, unknown> }> {
-  // Dynamic import for pdf-parse
   const pdfParse = (await import('pdf-parse')).default;
   const data = await pdfParse(buffer);
   return {
@@ -258,10 +277,10 @@ async function extractDocxText(
 async function extractEpubText(
   _buffer: Buffer
 ): Promise<{ text: string; metadata: Record<string, unknown> }> {
-  // Note: epub-parser may need different handling
-  // For now, return empty - can be implemented with proper epub library
   return {
     text: '',
     metadata: {},
   };
 }
+
+export { documentQueue, documentWorker };

@@ -57,6 +57,7 @@
     "@trpc/client": "^11.0.0-rc.587",
     "@trpc/react-query": "^11.0.0-rc.587",
     "@trpc/server": "^11.0.0-rc.587",
+    "@vercel/node": "^5.5.27",
     "bullmq": "^5.25.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
