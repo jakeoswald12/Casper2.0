@@ -1,8 +1,40 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '../server/routers';
-import { db } from '../server/db';
-import { verifyToken, type JWTPayload } from '../server/lib/auth';
+import { getDb } from './db-serverless';
+
+// Import auth functions inline to avoid server/ imports
+import jwt from 'jsonwebtoken';
+
+interface JWTPayload {
+  userId: number;
+  openId: string;
+}
+
+async function verifyToken(token: string): Promise<JWTPayload | null> {
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return null;
+    const decoded = jwt.verify(token, secret) as JWTPayload;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+// We need to dynamically import the router to handle module resolution
+let appRouter: any = null;
+
+async function getRouter() {
+  if (appRouter) return appRouter;
+  try {
+    const module = await import('../server/routers');
+    appRouter = module.appRouter;
+    return appRouter;
+  } catch (error: any) {
+    console.error('Failed to load router:', error.message);
+    throw error;
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Add CORS headers
@@ -16,6 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const router = await getRouter();
+    const db = getDb();
+
     // Convert Vercel request to Fetch API Request
     const url = new URL(req.url || '', `https://${req.headers.host}`);
 
@@ -40,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? JSON.stringify(req.body)
           : undefined,
       }),
-      router: appRouter,
+      router,
       createContext: () => ({
         req: req as any,
         res: res as any,
@@ -63,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.send(body);
   } catch (error: any) {
     console.error('API Error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal Server Error',
       message: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
