@@ -10,6 +10,7 @@ import {
   PenTool,
   ChevronLeft,
   ChevronRight,
+  BookOpen,
 } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Button } from '../components/ui/button';
@@ -17,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { SourcesManager } from '../components/sources/SourcesManager';
 import { ManuscriptEditor } from '../components/editor/ManuscriptEditor';
 import { ChatPanel } from '../components/chat/ChatPanel';
+import { SummaryEditor } from '../components/summary/SummaryEditor';
+import { ExportButton } from '../components/export/ExportButton';
 import { cn } from '../lib/utils';
 
 export function Studio() {
@@ -102,8 +105,11 @@ export function Studio() {
                 <span className="font-semibold">{book.title}</span>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>{wordCount.toLocaleString()} words</span>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {wordCount.toLocaleString()} words
+              </span>
+              <ExportButton bookId={bookId} bookTitle={book.title} />
             </div>
           </div>
         </div>
@@ -121,6 +127,10 @@ export function Studio() {
               <TabsTrigger value="write" className="gap-2">
                 <PenTool className="w-4 h-4" />
                 Write
+              </TabsTrigger>
+              <TabsTrigger value="summary" className="gap-2">
+                <BookOpen className="w-4 h-4" />
+                Summary
               </TabsTrigger>
               <TabsTrigger value="chat" className="gap-2 lg:hidden">
                 <MessageSquare className="w-4 h-4" />
@@ -223,6 +233,18 @@ export function Studio() {
                     </p>
                   </div>
                   <SourcesManager bookId={bookId} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="summary" className="h-full m-0 p-4 overflow-y-auto">
+                <div className="max-w-4xl mx-auto">
+                  <div className="mb-6">
+                    <h2 className="text-xl font-semibold mb-2">Book Summary</h2>
+                    <p className="text-muted-foreground">
+                      Organize your book's summary structure. Drag and drop sections to reorder them.
+                    </p>
+                  </div>
+                  <SummaryEditor bookId={bookId} />
                 </div>
               </TabsContent>
             </div>

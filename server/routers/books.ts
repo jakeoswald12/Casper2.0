@@ -9,6 +9,8 @@ import {
   NewBook,
   NewOutlineItem,
 } from '../../drizzle/schema';
+import { generateDocx } from '../lib/docxExport';
+import { uploadBuffer, getDownloadPresignedUrl } from '../lib/s3';
 
 // Summary item type
 interface SummaryItem {
@@ -415,5 +417,84 @@ export const booksRouter = router({
 
         return created;
       }
+    }),
+
+  // Get outline items for a book
+  getOutline: protectedProcedure
+    .input(z.object({ bookId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      // Verify ownership
+      const book = await ctx.db.query.books.findFirst({
+        where: and(eq(books.id, input.bookId), eq(books.userId, ctx.userId)),
+      });
+
+      if (!book) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Book not found',
+        });
+      }
+
+      const items = await ctx.db.query.outlineItems.findMany({
+        where: eq(outlineItems.bookId, input.bookId),
+        orderBy: [asc(outlineItems.position)],
+      });
+
+      return items;
+    }),
+
+  // ===== EXPORT OPERATIONS =====
+
+  // Export book as DOCX
+  exportDocx: protectedProcedure
+    .input(z.object({ bookId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      // Get book
+      const book = await ctx.db.query.books.findFirst({
+        where: and(eq(books.id, input.bookId), eq(books.userId, ctx.userId)),
+      });
+
+      if (!book) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Book not found',
+        });
+      }
+
+      // Get outline
+      const outline = await ctx.db.query.outlineItems.findMany({
+        where: eq(outlineItems.bookId, input.bookId),
+        orderBy: [asc(outlineItems.position)],
+      });
+
+      // Get manuscripts
+      const bookManuscripts = await ctx.db.query.manuscripts.findMany({
+        where: eq(manuscripts.bookId, input.bookId),
+      });
+
+      // Generate DOCX
+      const buffer = await generateDocx(book, outline, bookManuscripts);
+
+      // Generate filename
+      const sanitizedTitle = book.title
+        .replace(/[^a-z0-9]/gi, '_')
+        .substring(0, 50);
+      const filename = `${sanitizedTitle}_${Date.now()}.docx`;
+      const s3Key = `exports/${ctx.userId}/${filename}`;
+
+      // Upload to S3
+      await uploadBuffer(
+        s3Key,
+        buffer,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+
+      // Generate presigned URL for download (valid for 1 hour)
+      const downloadUrl = await getDownloadPresignedUrl(s3Key, 3600);
+
+      return {
+        downloadUrl,
+        filename,
+      };
     }),
 });

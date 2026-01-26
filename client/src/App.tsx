@@ -3,6 +3,7 @@ import { Toaster } from 'sonner';
 import { Dashboard } from './pages/Dashboard';
 import { Studio } from './pages/Studio';
 import { Landing } from './pages/Landing';
+import { Settings } from './pages/Settings';
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
         <Route path="/" component={Landing} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/studio/:bookId" component={Studio} />
+        <Route path="/settings" component={Settings} />
         <Route>
           <div className="flex items-center justify-center min-h-screen">
             <h1 className="text-2xl font-bold">404 - Page Not Found</h1>
