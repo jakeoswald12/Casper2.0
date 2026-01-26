@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "outDir": "./dist",
+    "allowImportingTsExtensions": false,
+    "declaration": true
+  },
+  "include": ["server/**/*", "shared/**/*", "drizzle/**/*"],
+  "exclude": ["node_modules", "client", "dist"]
+}
