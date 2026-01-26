@@ -19,4 +19,7 @@ const client = postgres(connectionString, {
 // Create drizzle instance with schema
 export const db = drizzle(client, { schema });
 
+// Export raw client for direct queries (like health checks)
+export const sqlClient = client;
+
 export type Database = typeof db;
