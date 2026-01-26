@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getSqlClient } from './_db';
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const checks: Record<string, any> = {
@@ -14,8 +15,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   // Test database connection
   try {
-    const { sqlClient } = await import('../server/db');
-    const result = await sqlClient`SELECT 1 as test`;
+    const sql = getSqlClient();
+    const result = await sql`SELECT 1 as test`;
     checks.database = { status: 'connected', result: result[0]?.test };
   } catch (error: any) {
     checks.database = {
@@ -29,8 +30,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   // Check if tables exist
   if (checks.database?.status === 'connected') {
     try {
-      const { sqlClient } = await import('../server/db');
-      const tables = await sqlClient`
+      const sql = getSqlClient();
+      const tables = await sql`
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public'
