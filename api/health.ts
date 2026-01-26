@@ -1,11 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSqlClient } from './_db';
+import { getSqlClient } from './db-serverless';
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const checks: Record<string, any> = {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '2.0.0',
+    version: '2.0.1',
+    build: 'serverless-fix',
     environment: {
       DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',
       JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'missing',
