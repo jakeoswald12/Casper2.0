@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { getDb } from './db-serverless';
+import { appRouter } from '../server/routers';
 import jwt from 'jsonwebtoken';
 
 interface JWTPayload {
@@ -31,8 +32,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Dynamic import to handle module resolution in serverless
-    const { appRouter } = await import('../server/routers');
     const db = getDb();
 
     // Convert Vercel request to Fetch API Request
