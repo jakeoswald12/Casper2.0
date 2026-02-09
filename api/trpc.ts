@@ -2,19 +2,22 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { getDb } from './db-serverless';
 import { appRouter } from '../server/routers';
-import jwt from 'jsonwebtoken';
+import { jwtVerify } from 'jose';
 
 interface JWTPayload {
   userId: number;
   openId: string;
+  email?: string;
+  role: string;
 }
 
 async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
     const secret = process.env.JWT_SECRET;
     if (!secret) return null;
-    const decoded = jwt.verify(token, secret) as JWTPayload;
-    return decoded;
+    const key = new TextEncoder().encode(secret);
+    const { payload } = await jwtVerify(token, key);
+    return payload as unknown as JWTPayload;
   } catch {
     return null;
   }
