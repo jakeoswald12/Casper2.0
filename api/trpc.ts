@@ -6,6 +6,8 @@ import * as schema from '../drizzle/schema';
 import { appRouter } from '../server/routers';
 import { jwtVerify } from 'jose';
 
+export const config = { maxDuration: 60 };
+
 // --- Inline DB connection (avoids ESM import issues between api/ files) ---
 
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
