@@ -1,13 +1,14 @@
 import { build } from 'esbuild';
-import { readdirSync } from 'fs';
+import { readdirSync, mkdirSync } from 'fs';
 
-// Bundle each api/*.ts entry point into api/*.js as self-contained serverless functions.
-// This is needed because Vercel's @vercel/node builder doesn't properly handle
-// cross-directory imports in ESM ("type": "module") projects.
-// Vercel prefers .js over .ts when both exist with the same name.
-const apiFiles = readdirSync('api')
+// Bundle each api-src/*.ts entry point into api/*.js as self-contained
+// serverless functions. Source lives in api-src/ (not api/) so Vercel
+// doesn't try to compile them with its own builder.
+const apiFiles = readdirSync('api-src')
   .filter(f => f.endsWith('.ts') && f !== 'db-serverless.ts')
-  .map(f => `api/${f}`);
+  .map(f => `api-src/${f}`);
+
+mkdirSync('api', { recursive: true });
 
 console.log('Bundling API functions:', apiFiles);
 
