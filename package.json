@@ -3,7 +3,6 @@
   "version": "2.0.0",
   "description": "Your friendly AI ghostwriter - powered by Claude Opus 4.6",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "concurrently \"pnpm:dev:server\" \"pnpm:dev:client\"",
     "dev:server": "tsx watch server/index.ts",
