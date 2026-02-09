@@ -107,7 +107,6 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.0.1",
     "drizzle-kit": "^0.31.9",
-    "esbuild": "^0.27.3",
     "eslint": "^9.13.0",
     "postcss": "^8.4.47",
     "prettier": "^3.3.3",

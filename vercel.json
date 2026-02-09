@@ -1,7 +1,12 @@
 {
   "version": 2,
-  "buildCommand": "pnpm build:client && node scripts/build-api.mjs",
+  "buildCommand": "pnpm build:client",
   "outputDirectory": "dist/client",
+  "functions": {
+    "api/**/*.ts": {
+      "includeFiles": "drizzle/**,server/**,shared/**"
+    }
+  },
   "rewrites": [
     { "source": "/api/trpc/:path*", "destination": "/api/trpc" },
     { "source": "/api/webhooks/:path*", "destination": "/api/webhooks" },
