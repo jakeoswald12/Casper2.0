@@ -38,6 +38,12 @@ for (const fn of FUNCTIONS) {
     sourcemap: false,
     minify: false,
     tsconfig: './tsconfig.json',
+    // Vercel's Node.js launcher expects module.exports to be the handler
+    // function directly, but esbuild's CJS wraps it as module.exports.default.
+    // This footer unwraps the default export for Vercel compatibility.
+    footer: {
+      js: 'if(module.exports.default)module.exports=module.exports.default;',
+    },
   });
 
   writeFileSync(
