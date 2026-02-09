@@ -5,8 +5,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   const checks: Record<string, any> = {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '2.0.3',
-    build: 'explicit-params',
+    version: '2.0.4',
+    build: 'ssl-fix',
     environment: {
       DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',
       JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'missing',
@@ -14,7 +14,6 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     },
   };
 
-  // Test database connection with explicit parameters
   if (process.env.DATABASE_URL) {
     try {
       // Parse the URL to extract components
@@ -32,6 +31,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
         database: database,
       };
 
+      // Try with SSL required (Supabase needs this)
       const sql = postgres({
         host: host,
         port: parseInt(port),
@@ -42,12 +42,12 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
         idle_timeout: 20,
         connect_timeout: 10,
         prepare: false,
+        ssl: 'require',
       });
 
       const result = await sql`SELECT 1 as test`;
       checks.database = { status: 'connected', result: result[0]?.test };
 
-      // Check tables
       const tables = await sql`
         SELECT table_name
         FROM information_schema.tables

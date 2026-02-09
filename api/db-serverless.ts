@@ -8,6 +8,17 @@ import * as schema from '../drizzle/schema';
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let sqlClient: ReturnType<typeof postgres> | null = null;
 
+function parseConnectionString(connectionString: string) {
+  const url = new URL(connectionString);
+  return {
+    host: url.hostname,
+    port: parseInt(url.port || '5432'),
+    database: url.pathname.slice(1),
+    username: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+  };
+}
+
 export function getDb() {
   if (db) return db;
 
@@ -16,11 +27,15 @@ export function getDb() {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  sqlClient = postgres(connectionString, {
+  const params = parseConnectionString(connectionString);
+
+  sqlClient = postgres({
+    ...params,
     max: 1,
     idle_timeout: 20,
     connect_timeout: 10,
     prepare: false,
+    ssl: 'require',
   });
 
   db = drizzle(sqlClient, { schema });
@@ -35,11 +50,15 @@ export function getSqlClient() {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  sqlClient = postgres(connectionString, {
+  const params = parseConnectionString(connectionString);
+
+  sqlClient = postgres({
+    ...params,
     max: 1,
     idle_timeout: 20,
     connect_timeout: 10,
     prepare: false,
+    ssl: 'require',
   });
 
   return sqlClient;
