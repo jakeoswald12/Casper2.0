@@ -16,22 +16,28 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   if (process.env.DATABASE_URL) {
     try {
-      // Add sslmode to URL if not present
-      let dbUrl = process.env.DATABASE_URL;
-      if (!dbUrl.includes('sslmode=')) {
-        dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'sslmode=require';
-      }
+      // Parse URL explicitly because postgres.js truncates usernames
+      // containing dots (e.g. Supabase "postgres.projectref")
+      const dbParsed = new URL(process.env.DATABASE_URL);
 
       checks.debug = {
-        urlWithSsl: dbUrl.replace(/:[^:@]+@/, ':***@'), // hide password
+        host: dbParsed.hostname,
+        port: dbParsed.port,
+        user: dbParsed.username,
+        database: dbParsed.pathname.slice(1),
       };
 
-      // Pass URL directly to postgres
-      const sql = postgres(dbUrl, {
+      const sql = postgres({
+        host: dbParsed.hostname,
+        port: parseInt(dbParsed.port || '5432'),
+        database: dbParsed.pathname.slice(1),
+        username: decodeURIComponent(dbParsed.username),
+        password: decodeURIComponent(dbParsed.password),
         max: 1,
         idle_timeout: 20,
         connect_timeout: 10,
         prepare: false,
+        ssl: 'require',
       });
 
       const result = await sql`SELECT 1 as test`;

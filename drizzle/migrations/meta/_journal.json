@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1769442448602,
-      "tag": "0000_dark_silk_fever",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1770646332552,
-      "tag": "0001_flaky_random",
+      "when": 1770652050009,
+      "tag": "0000_flawless_karnak",
       "breakpoints": true
     }
   ]

@@ -8,36 +8,40 @@ import * as schema from '../drizzle/schema';
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let sqlClient: ReturnType<typeof postgres> | null = null;
 
-function parseConnectionString(connectionString: string) {
-  const url = new URL(connectionString);
+// Parse URL and pass explicit credentials to postgres() because
+// postgres.js truncates usernames containing dots (e.g. Supabase pooler
+// usernames like "postgres.projectref" become just "postgres").
+function parseDbUrl(url: string) {
+  const parsed = new URL(url);
   return {
-    host: url.hostname,
-    port: parseInt(url.port || '5432'),
-    database: url.pathname.slice(1),
-    username: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
+    host: parsed.hostname,
+    port: parseInt(parsed.port || '5432'),
+    database: parsed.pathname.slice(1),
+    username: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
   };
 }
 
-export function getDb() {
-  if (db) return db;
-
+function createClient() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  const params = parseConnectionString(connectionString);
-
-  sqlClient = postgres({
-    ...params,
+  return postgres({
+    ...parseDbUrl(connectionString),
     max: 1,
     idle_timeout: 20,
     connect_timeout: 10,
     prepare: false,
     ssl: 'require',
   });
+}
 
+export function getDb() {
+  if (db) return db;
+
+  sqlClient = createClient();
   db = drizzle(sqlClient, { schema });
   return db;
 }
@@ -45,22 +49,7 @@ export function getDb() {
 export function getSqlClient() {
   if (sqlClient) return sqlClient;
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL environment variable is not set');
-  }
-
-  const params = parseConnectionString(connectionString);
-
-  sqlClient = postgres({
-    ...params,
-    max: 1,
-    idle_timeout: 20,
-    connect_timeout: 10,
-    prepare: false,
-    ssl: 'require',
-  });
-
+  sqlClient = createClient();
   return sqlClient;
 }
 
