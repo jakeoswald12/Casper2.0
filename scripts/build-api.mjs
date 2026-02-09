@@ -17,9 +17,12 @@ await build({
   bundle: true,
   platform: 'node',
   target: 'node20',
-  format: 'cjs',
+  format: 'esm',
   outdir: 'api',
   outExtension: { '.js': '.js' },
+  banner: {
+    js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`,
+  },
   external: ['@vercel/node'],
   sourcemap: false,
   minify: false,
