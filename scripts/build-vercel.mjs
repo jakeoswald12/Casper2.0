@@ -53,6 +53,7 @@ for (const fn of FUNCTIONS) {
         runtime: 'nodejs20.x',
         handler: 'index.js',
         launcherType: 'Nodejs',
+        shouldAddHelpers: true,
         maxDuration: fn.maxDuration,
       },
       null,
@@ -72,7 +73,7 @@ writeFileSync(
 );
 writeFileSync(
   `${testFuncDir}/.vc-config.json`,
-  JSON.stringify({ runtime: 'nodejs20.x', handler: 'index.js', launcherType: 'Nodejs' }, null, 2)
+  JSON.stringify({ runtime: 'nodejs20.x', handler: 'index.js', launcherType: 'Nodejs', shouldAddHelpers: true }, null, 2)
 );
 console.log('  Created test function');
 
