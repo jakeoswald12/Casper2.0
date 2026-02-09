@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { readdirSync } from 'fs';
+import { readdirSync, unlinkSync } from 'fs';
 
 // Bundle each api/*.ts entry point into api/*.js as self-contained serverless functions.
 // This is needed because Vercel's @vercel/node builder doesn't properly handle
@@ -22,5 +22,11 @@ await build({
   sourcemap: false,
   minify: false,
 });
+
+// Remove .ts source files so Vercel only detects the bundled .js files
+for (const f of apiFiles) {
+  unlinkSync(f);
+  console.log(`  Removed ${f} (bundled into ${f.replace('.ts', '.js')})`);
+}
 
 console.log('API functions bundled successfully');
