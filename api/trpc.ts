@@ -1,8 +1,44 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { getDb } from './db-serverless';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import * as schema from '../drizzle/schema';
 import { appRouter } from '../server/routers';
 import { jwtVerify } from 'jose';
+
+// --- Inline DB connection (avoids ESM import issues between api/ files) ---
+
+let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+function getDb() {
+  if (db) return db;
+
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is not set');
+  }
+
+  // Parse URL explicitly because postgres.js truncates usernames
+  // containing dots (e.g. Supabase "postgres.projectref")
+  const parsed = new URL(connectionString);
+  const sqlClient = postgres({
+    host: parsed.hostname,
+    port: parseInt(parsed.port || '5432'),
+    database: parsed.pathname.slice(1),
+    username: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 10,
+    prepare: false,
+    ssl: 'require',
+  });
+
+  db = drizzle(sqlClient, { schema });
+  return db;
+}
+
+// --- JWT verification using jose (same lib as server/lib/auth.ts) ---
 
 interface JWTPayload {
   userId: number;
@@ -23,21 +59,20 @@ async function verifyToken(token: string): Promise<JWTPayload | null> {
   }
 }
 
+// --- Handler ---
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Add CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   try {
-    const db = getDb();
+    const database = getDb();
 
-    // Convert Vercel request to Fetch API Request
     const url = new URL(req.url || '', `https://${req.headers.host}`);
 
     // Get auth token from header or cookie
@@ -51,7 +86,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       user = await verifyToken(token);
     }
 
-    // Handle the tRPC request
     const response = await fetchRequestHandler({
       endpoint: '/api/trpc',
       req: new Request(url, {
@@ -65,7 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createContext: () => ({
         req: req as any,
         res: res as any,
-        db,
+        db: database,
         user,
       }),
       onError: ({ path, error }) => {
@@ -73,12 +107,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    // Copy response headers
     response.headers.forEach((value, key) => {
       res.setHeader(key, value);
     });
 
-    // Send response
     res.status(response.status);
     const body = await response.text();
     res.send(body);
@@ -87,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message,
-      details: error.stack?.split('\n').slice(0, 5)
+      details: error.stack?.split('\n').slice(0, 5),
     });
   }
 }
