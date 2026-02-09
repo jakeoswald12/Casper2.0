@@ -5,8 +5,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   const checks: Record<string, any> = {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '2.0.2',
-    build: 'minimal-test',
+    version: '2.0.3',
+    build: 'explicit-params',
     environment: {
       DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',
       JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'missing',
@@ -14,10 +14,30 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     },
   };
 
-  // Test database connection directly (no schema import)
+  // Test database connection with explicit parameters
   if (process.env.DATABASE_URL) {
     try {
-      const sql = postgres(process.env.DATABASE_URL, {
+      // Parse the URL to extract components
+      const url = new URL(process.env.DATABASE_URL);
+      const username = decodeURIComponent(url.username);
+      const password = decodeURIComponent(url.password);
+      const host = url.hostname;
+      const port = url.port || '5432';
+      const database = url.pathname.slice(1);
+
+      checks.debug = {
+        username: username,
+        host: host,
+        port: port,
+        database: database,
+      };
+
+      const sql = postgres({
+        host: host,
+        port: parseInt(port),
+        database: database,
+        username: username,
+        password: password,
         max: 1,
         idle_timeout: 20,
         connect_timeout: 10,
