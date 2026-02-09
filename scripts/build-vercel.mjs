@@ -63,6 +63,19 @@ for (const fn of FUNCTIONS) {
   console.log(`  Bundled api/${fn.name}.ts`);
 }
 
+// Step 4b: Create a minimal test function to verify Build Output API works
+const testFuncDir = `${OUTPUT}/functions/api/test.func`;
+mkdirSync(testFuncDir, { recursive: true });
+writeFileSync(
+  `${testFuncDir}/index.js`,
+  `module.exports = (req, res) => { res.json({ ok: true, time: Date.now() }); };`
+);
+writeFileSync(
+  `${testFuncDir}/.vc-config.json`,
+  JSON.stringify({ runtime: 'nodejs20.x', handler: 'index.js', launcherType: 'Nodejs' }, null, 2)
+);
+console.log('  Created test function');
+
 // Step 5: Write Vercel Build Output API config
 console.log('Step 4: Writing route config...');
 writeFileSync(
@@ -74,6 +87,7 @@ writeFileSync(
         { src: '/api/trpc/(.*)', dest: '/api/trpc' },
         { src: '/api/webhooks/(.*)', dest: '/api/webhooks' },
         { src: '/api/health', dest: '/api/health' },
+        { src: '/api/test', dest: '/api/test' },
         { handle: 'filesystem' },
         { src: '/(.*)', dest: '/index.html' },
       ],
