@@ -5,8 +5,8 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   const checks: Record<string, any> = {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '2.0.4',
-    build: 'ssl-fix',
+    version: '2.0.5',
+    build: 'url-direct',
     environment: {
       DATABASE_URL: process.env.DATABASE_URL ? 'set' : 'missing',
       JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'missing',
@@ -16,33 +16,22 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   if (process.env.DATABASE_URL) {
     try {
-      // Parse the URL to extract components
-      const url = new URL(process.env.DATABASE_URL);
-      const username = decodeURIComponent(url.username);
-      const password = decodeURIComponent(url.password);
-      const host = url.hostname;
-      const port = url.port || '5432';
-      const database = url.pathname.slice(1);
+      // Add sslmode to URL if not present
+      let dbUrl = process.env.DATABASE_URL;
+      if (!dbUrl.includes('sslmode=')) {
+        dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'sslmode=require';
+      }
 
       checks.debug = {
-        username: username,
-        host: host,
-        port: port,
-        database: database,
+        urlWithSsl: dbUrl.replace(/:[^:@]+@/, ':***@'), // hide password
       };
 
-      // Try with SSL required (Supabase needs this)
-      const sql = postgres({
-        host: host,
-        port: parseInt(port),
-        database: database,
-        username: username,
-        password: password,
+      // Pass URL directly to postgres
+      const sql = postgres(dbUrl, {
         max: 1,
         idle_timeout: 20,
         connect_timeout: 10,
         prepare: false,
-        ssl: 'require',
       });
 
       const result = await sql`SELECT 1 as test`;
