@@ -40,9 +40,14 @@ for (const fn of FUNCTIONS) {
     tsconfig: './tsconfig.json',
     // Vercel's Node.js launcher expects module.exports to be the handler
     // function directly, but esbuild's CJS wraps it as module.exports.default.
-    // This footer unwraps the default export for Vercel compatibility.
+    // This footer unwraps the default export and wraps it with error handling
+    // so we can see actual errors instead of generic FUNCTION_INVOCATION_FAILED.
     footer: {
-      js: 'if(module.exports.default)module.exports=module.exports.default;',
+      js: [
+        'if(module.exports.default)module.exports=module.exports.default;',
+        'var _origHandler=module.exports;',
+        'module.exports=async function(req,res){try{return await _origHandler(req,res)}catch(e){console.error("HANDLER_ERROR:",e);res.statusCode=500;res.end(JSON.stringify({error:e.message,stack:e.stack?.split("\\n").slice(0,10)}))}};',
+      ].join('\n'),
     },
   });
 
